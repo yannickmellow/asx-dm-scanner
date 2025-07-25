@@ -25,7 +25,7 @@ jobs:
 
     - name: Run ASX DeMark scanner script
       run: |
-        python your_script.py
+        python main.py
 
     - name: Commit and push updated dashboard
       env:
