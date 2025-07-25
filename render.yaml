@@ -1,0 +1,8 @@
+services:
+  - type: cron
+    name: asx-dm-scan
+    schedule: "0 7 * * *"  # Daily at 7 AM UTC
+    runtime: python
+    plan: free
+    buildCommand: ""
+    startCommand: "python main.py"
