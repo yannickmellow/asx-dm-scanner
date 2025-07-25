@@ -2,30 +2,29 @@ name: Update DeMark Dashboard
 
 on:
   schedule:
-    - cron: '0 20 * * 1-5'  # Run at 20:00 UTC every weekday (after ASX close)
-  workflow_dispatch:        # Allow manual triggering
+    - cron: "30 7 * * 1-5"  # Runs at 7:30 UTC every weekday
+  workflow_dispatch:        # Allow manual run from GitHub UI
 
 jobs:
-  build:
+  update-dashboard:
     runs-on: ubuntu-latest
+
     steps:
-      - name: ⬇️ Checkout repo
+      - name: 📥 Checkout repo
         uses: actions/checkout@v3
 
       - name: 🐍 Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: 📦 Install dependencies
-        run: |
-          pip install pandas yahooquery
+        run: pip install yahooquery pandas
 
-      - name: ⚙️ Run DeMark Scanner
-        run: |
-          python main.py
+      - name: 📈 Run signal scanner
+        run: python main.py
 
-      - name: 🚀 Commit and push output.html
+      - name: 📤 Push updated dashboard
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
