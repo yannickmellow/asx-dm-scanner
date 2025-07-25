@@ -113,5 +113,63 @@ def main():
     print_section("Daily Tops", daily_signals["Tops"])
     print_section("Weekly Tops", weekly_signals["Tops"])
 
+# ✅ Save HTML dashboard to root directory
+generate_html_dashboard(daily_signals, weekly_signals)
+def generate_html_dashboard(daily, weekly, output_file="output.html"):
+    def section_html(title, data):
+        if not data:
+            return f"<h2>{title}</h2><p>None</p>"
+        df = pd.DataFrame(data, columns=["Ticker", "Signal"])
+        return f"""
+            <h2>{title}</h2>
+            {df.to_html(index=False, border=1, justify="center")}
+        """
+
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>DeMark Signals Dashboard</title>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                padding: 20px;
+                background: #f9f9f9;
+                color: #333;
+            }}
+            h1 {{ text-align: center; }}
+            h2 {{ margin-top: 40px; color: #005A9C; }}
+            table {{
+                width: 60%;
+                margin: 0 auto;
+                border-collapse: collapse;
+            }}
+            th, td {{
+                padding: 8px 12px;
+                border: 1px solid #ccc;
+                text-align: center;
+            }}
+            tr:nth-child(even) {{ background-color: #f2f2f2; }}
+        </style>
+    </head>
+    <body>
+        <h1>DeMark Signals Dashboard</h1>
+        <p style="text-align:center;">Updated: {now}</p>
+        {section_html("Daily Bottoms", daily["Bottoms"])}
+        {section_html("Weekly Bottoms", weekly["Bottoms"])}
+        {section_html("Daily Tops", daily["Tops"])}
+        {section_html("Weekly Tops", weekly["Tops"])}
+    </body>
+    </html>
+    """
+
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write(html)
+    print(f"✅ HTML dashboard written to {output_file}")
+
+
+
 if __name__ == "__main__":
     main()
