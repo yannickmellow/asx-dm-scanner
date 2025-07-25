@@ -90,30 +90,6 @@ def scan_timeframe(tickers, interval_label, interval):
 
     return results
 
-def main():
-    tickers = fetch_asx200_tickers()
-    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-
-    # Scan Daily and Weekly
-    daily_signals = scan_timeframe(tickers, "1D", "1d")
-    weekly_signals = scan_timeframe(tickers, "1W", "1wk")
-
-    print(f"\n📋 DeMark Signals as of {now_str}\n" + "=" * 40)
-
-    def print_section(title, signals):
-        print(f"\n🔸 {title}\n" + "-" * 40)
-        if signals:
-            df = pd.DataFrame(signals, columns=["Ticker", "Signal"])
-            print(df.to_string(index=False))
-        else:
-            print("None")
-
-    print_section("Daily Bottoms", daily_signals["Bottoms"])
-    print_section("Weekly Bottoms", weekly_signals["Bottoms"])
-    print_section("Daily Tops", daily_signals["Tops"])
-    print_section("Weekly Tops", weekly_signals["Tops"])
-
-# ✅ Save HTML dashboard to root directory
 def generate_html_dashboard(daily, weekly, output_file="output.html"):
     def section_html(title, data):
         if not data:
@@ -168,7 +144,30 @@ def generate_html_dashboard(daily, weekly, output_file="output.html"):
         f.write(html)
     print(f"✅ HTML dashboard written to {output_file}")
 
+def main():
+    tickers = fetch_asx200_tickers()
+    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
+    # Scan Daily and Weekly
+    daily_signals = scan_timeframe(tickers, "1D", "1d")
+    weekly_signals = scan_timeframe(tickers, "1W", "1wk")
+
+    print(f"\n📋 DeMark Signals as of {now_str}\n" + "=" * 40)
+
+    def print_section(title, signals):
+        print(f"\n🔸 {title}\n" + "-" * 40)
+        if signals:
+            df = pd.DataFrame(signals, columns=["Ticker", "Signal"])
+            print(df.to_string(index=False))
+        else:
+            print("None")
+
+    print_section("Daily Bottoms", daily_signals["Bottoms"])
+    print_section("Weekly Bottoms", weekly_signals["Bottoms"])
+    print_section("Daily Tops", daily_signals["Tops"])
+    print_section("Weekly Tops", weekly_signals["Tops"])
+
+    generate_html_dashboard(daily_signals, weekly_signals)
 
 if __name__ == "__main__":
     main()
