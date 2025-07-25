@@ -1,1 +1,2 @@
-BHP.AX
+GEM.AX
+EOS.AX
