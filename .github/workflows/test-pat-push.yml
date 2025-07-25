@@ -1,0 +1,24 @@
+name: 🔐 Test PAT Push
+
+on:
+  workflow_dispatch:  # Manual trigger from GitHub UI
+
+jobs:
+  test-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⬇️ Checkout repo
+        uses: actions/checkout@v4
+
+      - name: 📝 Create test commit
+        run: |
+          echo "Test file $(date)" > gh-pat-test.txt
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add gh-pat-test.txt
+          git commit -m "🚀 Test push via GH_PAT"
+
+      - name: 🚀 Push using GH_PAT
+        env:
+          GH_PAT_
