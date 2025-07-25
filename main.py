@@ -30,10 +30,19 @@ def compute_dm_signals(df):
 
     for i in range(4, length):
         TD[i] = TD[i-1] + 1 if close[i] > close[i-4] else 0
-        TDUp[i] = TD[i] - (TD[i-1] if TD[i-1] < TD[i] else 0)
-
         TS[i] = TS[i-1] + 1 if close[i] < close[i-4] else 0
-        TDDn[i] = TS[i] - (TS[i-1] if TS[i-1] < TS[i] else 0)
+
+    # For TDUp and TDDn, we find the last reset index before i
+    def valuewhen_reset(arr, idx):
+        # Find last index < idx where arr[j] < arr[j-1]
+        for j in range(idx - 1, 0, -1):
+            if arr[j] < arr[j - 1]:
+                return arr[j]
+        return 0
+
+    for i in range(4, length):
+        TDUp[i] = TD[i] - valuewhen_reset(TD, i)
+        TDDn[i] = TS[i] - valuewhen_reset(TS, i)
 
     DM9Top = any(t == 9 for t in TDUp)
     DM13Top = any(t == 13 for t in TDUp)
