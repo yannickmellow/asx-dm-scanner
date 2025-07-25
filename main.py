@@ -16,7 +16,18 @@ def fetch_asx200_tickers():
         print("❌ Ticker cache file not found!")
         return []
 
-# DM9/DM13 logic, check only if triggered on last trading day
+# Helper function to replicate PineScript's valuewhen(condition) in Python
+def valuewhen_condition(arr):
+    length = len(arr)
+    last_vals = [0] * length
+    last_value = 0
+    for i in range(1, length):
+        if arr[i] < arr[i-1]:
+            last_value = arr[i]
+        last_vals[i] = last_value
+    return last_vals
+
+# DM9/DM13 logic adapted from PineScript
 def compute_dm_signals(df):
     close = df["close"].values
     length = len(close)
@@ -24,18 +35,19 @@ def compute_dm_signals(df):
         return False, False, False, False
 
     TD = [0] * length
-    TDUp = [0] * length
     TS = [0] * length
-    TDDn = [0] * length
 
     for i in range(4, length):
         TD[i] = TD[i-1] + 1 if close[i] > close[i-4] else 0
-        TDUp[i] = TD[i] - (TD[i-1] if TD[i-1] < TD[i] else 0)
-
         TS[i] = TS[i-1] + 1 if close[i] < close[i-4] else 0
-        TDDn[i] = TS[i] - (TS[i-1] if TS[i-1] < TS[i] else 0)
 
-    # Signals only if triggered on last day
+    TD_valwhen = valuewhen_condition(TD)
+    TS_valwhen = valuewhen_condition(TS)
+
+    TDUp = [TD[i] - TD_valwhen[i] for i in range(length)]
+    TDDn = [TS[i] - TS_valwhen[i] for i in range(length)]
+
+    # We want to detect signals ONLY on the last available trading day
     last_TDUp = TDUp[-1]
     last_TDDn = TDDn[-1]
 
@@ -53,8 +65,8 @@ def main():
 
     signals_found = []
 
-    # Use last 30 calendar days to cover 20+ trading days
-    end_date = datetime.utcnow().date() - timedelta(days=1)  # yesterday
+    # We consider "yesterday" as the day to detect signals for
+    end_date = datetime.utcnow().date() - timedelta(days=1)
     start_date = end_date - timedelta(days=30)
 
     for ticker in tickers:
@@ -64,22 +76,23 @@ def main():
             if hist.empty:
                 continue
 
-            # If multiple tickers returned, filter for this ticker
+            # Handle multiindex from yahooquery for multiple tickers
             if isinstance(hist.index, pd.MultiIndex):
                 df = hist.xs(ticker, level=0)
             else:
                 df = hist
 
             df = df.reset_index()
-            # Normalize columns to lowercase
             df.columns = [c.lower() for c in df.columns]
 
-            # Sort oldest to newest (usually already sorted, but safe)
-            df = df.sort_values(by="date").reset_index(drop=True)
+            # Convert dates to date objects
+            df["date"] = pd.to_datetime(df["date"]).dt.date
 
-            # Only proceed if we have data for the last trading day (end_date)
-            if pd.to_datetime(df["date"].iloc[-1]).date() != end_date:
-                print(f"⚠️ Warning: Last trading day data missing for {ticker}, skipping.")
+            last_date = df["date"].iloc[-1]
+
+            # Accept last_date if it is <= expected end_date (can be before due to weekends/holidays)
+            if last_date > end_date:
+                print(f"⚠️ Warning: Last date {last_date} beyond expected {end_date} for {ticker}, skipping.")
                 continue
 
             DM9Top, DM13Top, DM9Bot, DM13Bot = compute_dm_signals(df)
@@ -91,6 +104,7 @@ def main():
                     "DM13Top": DM13Top,
                     "DM9Bot": DM9Bot,
                     "DM13Bot": DM13Bot,
+                    "Date": last_date,
                 })
 
         except Exception as e:
@@ -98,7 +112,7 @@ def main():
 
     now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
     if signals_found:
-        print(f"📋 Signals triggered on {end_date} (yesterday) at {now_str}:")
+        print(f"📋 Signals found at {now_str}:")
         for signal in signals_found:
             flags = []
             if signal["DM9Top"]:
@@ -110,9 +124,9 @@ def main():
             if signal["DM13Bot"]:
                 flags.append("DM13Bot")
 
-            print(f" - {signal['Ticker']}: {', '.join(flags)}")
+            print(f" - {signal['Ticker']} ({signal['Date']}): {', '.join(flags)}")
     else:
-        print(f"🚫 No TD9/TD13 signals triggered on {end_date}.")
+        print(f"🚫 No signals found today.")
 
 if __name__ == "__main__":
     main()
