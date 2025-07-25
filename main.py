@@ -105,7 +105,7 @@ def main():
                 flags.append("DM9Bot")
             if signal["DM13Bot"]:
                 flags.append("DM13Bot")
-            flags=flags[0]
+            flags=flags[-1]
             print(f" - {signal['Ticker']} -- {flags}")
     else:
         print(f"🚫 No signals found today.")
