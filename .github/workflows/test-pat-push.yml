@@ -19,8 +19,9 @@ jobs:
           git add gh-pat-test.txt
           git commit -m "🚀 Test push via GH_PAT" || echo "Nothing to commit"
 
-      - name: 🚀 Push to main using GH_PAT
+     - name: 🚀 Push to main using GH_PAT
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
-          git remote set-url origin https://x-access-token:${GH
+          git remote set-url origin "https://x-access-token:${GH_PAT}@github.com/${{ github.repository }}.git"
+          git push origin HEAD:main
