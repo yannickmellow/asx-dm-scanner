@@ -1,0 +1,32 @@
+name: ASX DeMark Scan and Publish
+
+on:
+  schedule:
+    - cron: '0 11 * * 1-5'  # 8:30pm ACST = 11:00 UTC, Mon–Fri
+  workflow_dispatch:        # allows manual triggering too
+
+jobs:
+  scan-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📦 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install yahooquery pandas
+
+      - name: 🧠 Run DeMark scanner
+        run: python main.py
+
+      - name: 🚀 Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
