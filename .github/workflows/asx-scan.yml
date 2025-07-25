@@ -1,0 +1,25 @@
+name: ASX DM Scanner
+
+on:
+  schedule:
+    - cron: '0 21 * * *'  # Daily at 7AM AEST (21:00 UTC)
+  workflow_dispatch:       # Optional: allows manual runs from the GitHub UI
+
+jobs:
+  run-demark-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🧾 Checkout repo
+        uses: actions/checkout@v3
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: 🚀 Run ASX Scanner
+        run: python main.py
