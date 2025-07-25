@@ -16,7 +16,7 @@ def fetch_asx200_tickers():
         print("❌ Ticker cache file not found!")
         return []
 
-# DM9/DM13 logic (replicated from Pine Script)
+# DM9/DM13 logic, check only if triggered on last trading day
 def compute_dm_signals(df):
     close = df["close"].values
     length = len(close)
@@ -30,24 +30,20 @@ def compute_dm_signals(df):
 
     for i in range(4, length):
         TD[i] = TD[i-1] + 1 if close[i] > close[i-4] else 0
+        TDUp[i] = TD[i] - (TD[i-1] if TD[i-1] < TD[i] else 0)
+
         TS[i] = TS[i-1] + 1 if close[i] < close[i-4] else 0
+        TDDn[i] = TS[i] - (TS[i-1] if TS[i-1] < TS[i] else 0)
 
-    # For TDUp and TDDn, we find the last reset index before i
-    def valuewhen_reset(arr, idx):
-        # Find last index < idx where arr[j] < arr[j-1]
-        for j in range(idx - 1, 0, -1):
-            if arr[j] < arr[j - 1]:
-                return arr[j]
-        return 0
+    # Signals only if triggered on last day
+    last_TDUp = TDUp[-1]
+    last_TDDn = TDDn[-1]
 
-    for i in range(4, length):
-        TDUp[i] = TD[i] - valuewhen_reset(TD, i)
-        TDDn[i] = TS[i] - valuewhen_reset(TS, i)
+    DM13Top = last_TDUp == 13
+    DM9Top = last_TDUp == 9 and not DM13Top
 
-    DM9Top = any(t == 9 for t in TDUp)
-    DM13Top = any(t == 13 for t in TDUp)
-    DM9Bot = any(t == 9 for t in TDDn)
-    DM13Bot = any(t == 13 for t in TDDn)
+    DM13Bot = last_TDDn == 13
+    DM9Bot = last_TDDn == 9 and not DM13Bot
 
     return DM9Top, DM13Top, DM9Bot, DM13Bot
 
@@ -57,7 +53,8 @@ def main():
 
     signals_found = []
 
-    end_date = datetime.utcnow().date() - timedelta(days=1)
+    # Use last 30 calendar days to cover 20+ trading days
+    end_date = datetime.utcnow().date() - timedelta(days=1)  # yesterday
     start_date = end_date - timedelta(days=30)
 
     for ticker in tickers:
@@ -67,16 +64,23 @@ def main():
             if hist.empty:
                 continue
 
-            # yahooquery returns a DataFrame with multiindex if multiple tickers;
-            # filter for our ticker:
+            # If multiple tickers returned, filter for this ticker
             if isinstance(hist.index, pd.MultiIndex):
                 df = hist.xs(ticker, level=0)
             else:
                 df = hist
 
             df = df.reset_index()
-            # Normalize column names to lowercase
+            # Normalize columns to lowercase
             df.columns = [c.lower() for c in df.columns]
+
+            # Sort oldest to newest (usually already sorted, but safe)
+            df = df.sort_values(by="date").reset_index(drop=True)
+
+            # Only proceed if we have data for the last trading day (end_date)
+            if pd.to_datetime(df["date"].iloc[-1]).date() != end_date:
+                print(f"⚠️ Warning: Last trading day data missing for {ticker}, skipping.")
+                continue
 
             DM9Top, DM13Top, DM9Bot, DM13Bot = compute_dm_signals(df)
 
@@ -94,7 +98,7 @@ def main():
 
     now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
     if signals_found:
-        print(f"📋 Signals found at {now_str}:")
+        print(f"📋 Signals triggered on {end_date} (yesterday) at {now_str}:")
         for signal in signals_found:
             flags = []
             if signal["DM9Top"]:
@@ -108,7 +112,7 @@ def main():
 
             print(f" - {signal['Ticker']}: {', '.join(flags)}")
     else:
-        print(f"🚫 No signals found today.")
+        print(f"🚫 No TD9/TD13 signals triggered on {end_date}.")
 
 if __name__ == "__main__":
     main()
