@@ -77,7 +77,7 @@ def scan_signals(ticker, interval, timeframe_label):
         df.columns = [c.lower() for c in df.columns]
 
         # Remove today's partial bar
-        df = df[df["date"] < pd.Timestamp(datetime.utcnow().date())]
+        df = df[df["date"] < datetime.utcnow().date()]
         if df.empty:
             return None
 
