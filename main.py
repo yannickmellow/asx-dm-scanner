@@ -42,7 +42,6 @@ def compute_dm_signals(df):
         TDUp[i] = TD[i] - valuewhen_reset(TD, i)
         TDDn[i] = TS[i] - valuewhen_reset(TS, i)
 
-    # ✅ Only check signals on the final (most recent) candle
     i = length - 1
     DM9Top = TDUp[i] == 9
     DM13Top = TDUp[i] == 13
@@ -56,9 +55,6 @@ def main():
     print(f"📈 Scanning {len(tickers)} tickers for DM9/DM13 signals...")
 
     signals_found = []
-
-    end_date = datetime.utcnow().date() - timedelta(days=1)
-    start_date = end_date - timedelta(days=30)
 
     for ticker in tickers:
         try:
@@ -75,9 +71,10 @@ def main():
             df = df.reset_index()
             df.columns = [c.lower() for c in df.columns]
 
-            # Ensure we have a datetime column and only use rows before today
+            # 🛠 Fix: Compare using Timestamp to avoid type mismatch
             if 'date' in df.columns:
-                df = df[df['date'] < pd.to_datetime(datetime.utcnow().date())]
+                cutoff = pd.Timestamp(datetime.utcnow().date())
+                df = df[df['date'] < cutoff]
 
             DM9Top, DM13Top, DM9Bot, DM13Bot = compute_dm_signals(df)
 
