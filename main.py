@@ -75,7 +75,7 @@ def scan_timeframe(tickers, interval_label, interval):
             if interval == '1wk':
                 last_date = df['date'].iloc[-1].date()
                 today = datetime.utcnow().date()
-                if last_date >= today - timedelta(days=today.weekday()):  # Monday of this week
+                if last_date >= today - timedelta(days=today.weekday()):
                     df = df.iloc[:-1]
 
             DM9Top, DM13Top, DM9Bot, DM13Bot = compute_dm_signals(df)
@@ -90,65 +90,50 @@ def scan_timeframe(tickers, interval_label, interval):
 
     return results
 
-def generate_html_dashboard(daily, weekly, output_file="output.html"):
-    def section_html(title, data):
-        if not data:
-            return f"<h2>{title}</h2><p>None</p>"
-        df = pd.DataFrame(data, columns=["Ticker", "Signal"])
-        return f"""
-            <h2>{title}</h2>
-            {df.to_html(index=False, border=1, justify="center")}
-        """
+def write_html_report(timestamp, daily, weekly):
+    sections = [
+        ("Daily Bottoms", daily["Bottoms"]),
+        ("Weekly Bottoms", weekly["Bottoms"]),
+        ("Daily Tops", daily["Tops"]),
+        ("Weekly Tops", weekly["Tops"]),
+    ]
 
-    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>DeMark Signals Dashboard</title>
-        <style>
-            body {{
-                font-family: Arial, sans-serif;
-                padding: 20px;
-                background: #f9f9f9;
-                color: #333;
-            }}
-            h1 {{ text-align: center; }}
-            h2 {{ margin-top: 40px; color: #005A9C; }}
-            table {{
-                width: 60%;
-                margin: 0 auto;
-                border-collapse: collapse;
-            }}
-            th, td {{
-                padding: 8px 12px;
-                border: 1px solid #ccc;
-                text-align: center;
-            }}
-            tr:nth-child(even) {{ background-color: #f2f2f2; }}
-        </style>
-    </head>
-    <body>
-        <h1>DeMark Signals Dashboard</h1>
-        <p style="text-align:center;">Updated: {now}</p>
-        {section_html("Daily Bottoms", daily["Bottoms"])}
-        {section_html("Weekly Bottoms", weekly["Bottoms"])}
-        {section_html("Daily Tops", daily["Tops"])}
-        {section_html("Weekly Tops", weekly["Tops"])}
-    </body>
-    </html>
-    """
+    html = f"""<html>
+<head>
+    <title>ASX DeMark Signals</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; padding: 2em; }}
+        h2 {{ border-bottom: 1px solid #ccc; }}
+        table {{ border-collapse: collapse; margin-bottom: 2em; }}
+        th, td {{ border: 1px solid #ddd; padding: 0.5em; }}
+        th {{ background-color: #f4f4f4; }}
+    </style>
+</head>
+<body>
+    <h1>ASX DeMark Signals</h1>
+    <p>Last updated: {timestamp}</p>
+"""
 
-    with open(output_file, "w", encoding="utf-8") as f:
+    for title, data in sections:
+        html += f"<h2>{title}</h2>"
+        if data:
+            html += "<table><tr><th>Ticker</th><th>Signal</th></tr>"
+            for ticker, signal in data:
+                html += f"<tr><td>{ticker}</td><td>{signal}</td></tr>"
+            html += "</table>"
+        else:
+            html += "<p>None</p>"
+
+    html += "</body></html>"
+
+    os.makedirs("docs", exist_ok=True)
+    with open("docs/index.html", "w") as f:
         f.write(html)
-    print(f"✅ HTML dashboard written to {output_file}")
 
 def main():
     tickers = fetch_asx200_tickers()
     now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
-    # Scan Daily and Weekly
     daily_signals = scan_timeframe(tickers, "1D", "1d")
     weekly_signals = scan_timeframe(tickers, "1W", "1wk")
 
@@ -167,7 +152,7 @@ def main():
     print_section("Daily Tops", daily_signals["Tops"])
     print_section("Weekly Tops", weekly_signals["Tops"])
 
-    generate_html_dashboard(daily_signals, weekly_signals)
+    write_html_report(now_str, daily_signals, weekly_signals)
 
 if __name__ == "__main__":
     main()
