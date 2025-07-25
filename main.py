@@ -7,47 +7,18 @@ import requests
 from bs4 import BeautifulSoup
 import os
 
-# ✅ Fetch ASX200 tickers from MarketIndex with fallback to cache
+# ✅ Fetch ASX200 tickers
 def fetch_asx200_tickers():
-    url = "https://www.marketindex.com.au/asx200"
     cache_file = "asx200_cache.txt"
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                      "AppleWebKit/537.36 (KHTML, like Gecko) "
-                      "Chrome/115.0.0.0 Safari/537.36"
-    }
-
-    try:
-        print("🔍 Fetching ASX200 tickers from MarketIndex...")
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-
-        soup = BeautifulSoup(response.text, "html.parser")
-        table = soup.find("table")
-        df = pd.read_html(str(table))[0]
-
-        tickers = df["Code"].dropna().tolist()
-        tickers = [ticker.strip() + ".AX" for ticker in tickers]
-
-        with open(cache_file, "w") as f:
-            f.write("\n".join(tickers))
-
-        print(f"✅ Retrieved {len(tickers)} tickers from live site.")
-        return tickers
-
-    except Exception as e:
-        print(f"⚠️ Live fetch failed: {e}")
-        print("🔁 Attempting to load tickers from cache...")
-
-        if os.path.exists(cache_file):
-            with open(cache_file, "r") as f:
-                tickers = [line.strip() for line in f if line.strip()]
-                print(f"✅ Loaded {len(tickers)} tickers from cache.")
-                return tickers
-        else:
-            print("❌ No cache available. Returning empty list.")
-            return []
+    if os.path.exists(cache_file):
+        with open(cache_file, "r") as f:
+            tickers = [line.strip() for line in f if line.strip()]
+            print(f"✅ Loaded {len(tickers)} tickers from cache file.")
+            return tickers
+    else:
+        print("❌ Ticker cache file not found!")
+        return []
 
 # ✅ DM9/DM13 logic (replicated from Pine Script)
 def compute_dm_signals(df):
