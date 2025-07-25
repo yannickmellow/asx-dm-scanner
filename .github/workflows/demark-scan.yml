@@ -2,8 +2,8 @@ name: ASX DeMark Scan and Publish
 
 on:
   schedule:
-    - cron: '0 11 * * 1-5'  # 8:30pm ACST = 11:00 UTC, Mon–Fri
-  workflow_dispatch:        # allows manual triggering too
+    - cron: '0 11 * * 1-5'  # 8:30pm ACST = 11:00 UTC
+  workflow_dispatch:
 
 jobs:
   scan-and-publish:
@@ -25,8 +25,18 @@ jobs:
       - name: 🧠 Run DeMark scanner
         run: python main.py
 
-      - name: 🚀 Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs
+      - name: ✅ Commit updated report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html
+          git commit -m "🔄 Update report [auto]" || echo "No changes to commit"
+          git push
+
+
+      # ✅ REMOVE this step below if using /docs on main
+      # - name: 🚀 Deploy to GitHub Pages
+      #   uses: peaceiris/actions-gh-pages@v3
+      #   with:
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     publish_dir: ./docs
