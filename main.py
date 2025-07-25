@@ -1,13 +1,9 @@
-# main.py
-
 import yfinance as yf
 import pandas as pd
-from datetime import datetime
-import requests
-from bs4 import BeautifulSoup
+from datetime import datetime, timedelta
 import os
 
-# ✅ Fetch ASX200 tickers
+# ✅ Load ASX200 tickers from local cache file only
 def fetch_asx200_tickers():
     cache_file = "asx200_cache.txt"
 
@@ -31,70 +27,68 @@ def compute_dm_signals(df):
     TDUp = [0] * length
     TS = [0] * length
     TDDn = [0] * length
-    DM9 = [False] * length
-    DM13 = [False] * length
-    DM9B = [False] * length
-    DM13B = [False] * length
 
     for i in range(4, length):
-        TD[i] = TD[i - 1] + 1 if close[i] > close[i - 4] else 0
-        TS[i] = TS[i - 1] + 1 if close[i] < close[i - 4] else 0
+        TD[i] = TD[i-1] + 1 if close[i] > close[i-4] else 0
+        TDUp[i] = TD[i] - (TD[i-1] if TD[i-1] < TD[i] else 0)
 
-    last_td_reset = 0
-    last_ts_reset = 0
+        TS[i] = TS[i-1] + 1 if close[i] < close[i-4] else 0
+        TDDn[i] = TS[i] - (TS[i-1] if TS[i-1] < TS[i] else 0)
 
-    for i in range(1, length):
-        if TD[i] < TD[i - 1]:
-            last_td_reset = i
-        if TS[i] < TS[i - 1]:
-            last_ts_reset = i
+    DM9Top = any(t == 9 for t in TDUp)
+    DM13Top = any(t == 13 for t in TDUp)
+    DM9Bot = any(t == 9 for t in TDDn)
+    DM13Bot = any(t == 13 for t in TDDn)
 
-        TDUp[i] = TD[i] - TD[last_td_reset] if last_td_reset < i else 0
-        TDDn[i] = TS[i] - TS[last_ts_reset] if last_ts_reset < i else 0
+    return DM9Top, DM13Top, DM9Bot, DM13Bot
 
-        DM9[i] = TDUp[i] == 9
-        DM13[i] = TDUp[i] == 13
-        DM9B[i] = TDDn[i] == 9
-        DM13B[i] = TDDn[i] == 13
-
-    return DM9[-1], DM13[-1], DM9B[-1], DM13B[-1]
-
-# ✅ Scan and output signals
-def scan_asx200():
+def main():
     tickers = fetch_asx200_tickers()
-    print(f"📈 Scanning {len(tickers)} tickers for DM9/DM13 signals...\n")
+    print(f"📈 Scanning {len(tickers)} tickers for DM9/DM13 signals...")
 
-    results = []
+    signals_found = []
+
+    # Use yesterday's date to get most recent close (handle weekends/holidays)
+    end_date = datetime.utcnow().date() - timedelta(days=1)
+    start_date = end_date - timedelta(days=30)
 
     for ticker in tickers:
         try:
-            df = yf.download(ticker, period="30d", interval="1d", progress=False)
-            if df.empty or "Close" not in df.columns:
+            df = yf.download(ticker, start=start_date.isoformat(), end=end_date.isoformat(), progress=False)
+            if df.empty:
                 continue
 
-            DM9, DM13, DM9B, DM13B = compute_dm_signals(df)
-            if DM9 or DM13 or DM9B or DM13B:
-                result = {
+            DM9Top, DM13Top, DM9Bot, DM13Bot = compute_dm_signals(df)
+
+            if DM9Top or DM13Top or DM9Bot or DM13Bot:
+                signals_found.append({
                     "Ticker": ticker,
-                    "DM9": DM9,
-                    "DM13": DM13,
-                    "DM9B": DM9B,
-                    "DM13B": DM13B,
-                }
-                results.append(result)
+                    "DM9Top": DM9Top,
+                    "DM13Top": DM13Top,
+                    "DM9Bot": DM9Bot,
+                    "DM13Bot": DM13Bot,
+                })
 
         except Exception as e:
-            print(f"❌ Error processing {ticker}: {e}")
+            print(f"Failed to get ticker '{ticker}' reason: {e}")
 
-    # Output results
-    if results:
-        df_out = pd.DataFrame(results)
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-        print(f"\n📋 Signals found at {timestamp}:\n")
-        print(df_out.to_string(index=False))
+    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    if signals_found:
+        print(f"📋 Signals found at {now_str}:")
+        for signal in signals_found:
+            flags = []
+            if signal["DM9Top"]:
+                flags.append("DM9Top")
+            if signal["DM13Top"]:
+                flags.append("DM13Top")
+            if signal["DM9Bot"]:
+                flags.append("DM9Bot")
+            if signal["DM13Bot"]:
+                flags.append("DM13Bot")
+
+            print(f" - {signal['Ticker']}: {', '.join(flags)}")
     else:
-        print("🚫 No signals found today.")
+        print(f"🚫 No signals found today.")
 
-# ✅ Run script
 if __name__ == "__main__":
-    scan_asx200()
+    main()
