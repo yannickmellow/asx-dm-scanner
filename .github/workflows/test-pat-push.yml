@@ -1,7 +1,7 @@
 name: 🔐 Test PAT Push
 
 on:
-  workflow_dispatch:  # Allows manual triggering
+  workflow_dispatch:  # Manually triggered from GitHub UI
 
 jobs:
   test-push:
@@ -15,4 +15,12 @@ jobs:
         run: |
           echo "Test file created at $(date)" > gh-pat-test.txt
           git config user.name "github-actions"
-          git config user.email "github-actions@github.com
+          git config user.email "github-actions@github.com"
+          git add gh-pat-test.txt
+          git commit -m "🚀 Test push via GH_PAT" || echo "Nothing to commit"
+
+      - name: 🚀 Push to main using GH_PAT
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          git remote set-url origin https://x-access-token:${GH
