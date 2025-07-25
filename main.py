@@ -32,8 +32,9 @@ def compute_dm_signals(df):
         TD[i] = TD[i-1] + 1 if close[i] > close[i-4] else 0
         TS[i] = TS[i-1] + 1 if close[i] < close[i-4] else 0
 
-    # Helper: find last reset
+    # For TDUp and TDDn, we find the last reset index before i
     def valuewhen_reset(arr, idx):
+        # Find last index < idx where arr[j] < arr[j-1]
         for j in range(idx - 1, 0, -1):
             if arr[j] < arr[j - 1]:
                 return arr[j]
@@ -43,18 +44,10 @@ def compute_dm_signals(df):
         TDUp[i] = TD[i] - valuewhen_reset(TD, i)
         TDDn[i] = TS[i] - valuewhen_reset(TS, i)
 
-    # Check that last bar is from yesterday
-    last_bar_date = df["date"].iloc[-1].date()
-    expected_date = datetime.utcnow().date() - timedelta(days=1)
-    if last_bar_date != expected_date:
-        return False, False, False, False
-
-    # Only trigger if yesterday's bar completed the sequence
-    i = length - 1
-    DM9Top = TDUp[i] == 9
-    DM13Top = TDUp[i] == 13
-    DM9Bot = TDDn[i] == 9
-    DM13Bot = TDDn[i] == 13
+    DM9Top = any(t == 9 for t in TDUp)
+    DM13Top = any(t == 13 for t in TDUp)
+    DM9Bot = any(t == 9 for t in TDDn)
+    DM13Bot = any(t == 13 for t in TDDn)
 
     return DM9Top, DM13Top, DM9Bot, DM13Bot
 
@@ -64,6 +57,9 @@ def main():
 
     signals_found = []
 
+    end_date = datetime.utcnow().date() - timedelta(days=1)
+    start_date = end_date - timedelta(days=30)
+
     for ticker in tickers:
         try:
             tk = Ticker(ticker)
@@ -71,20 +67,16 @@ def main():
             if hist.empty:
                 continue
 
-            # yahooquery returns MultiIndex if multiple tickers
+            # yahooquery returns a DataFrame with multiindex if multiple tickers;
+            # filter for our ticker:
             if isinstance(hist.index, pd.MultiIndex):
                 df = hist.xs(ticker, level=0)
             else:
                 df = hist
 
             df = df.reset_index()
+            # Normalize column names to lowercase
             df.columns = [c.lower() for c in df.columns]
-
-            # Drop any future bars (e.g. today's)
-            df = df[df['date'] < pd.Timestamp(datetime.utcnow().date())]
-
-            if df.empty:
-                continue
 
             DM9Top, DM13Top, DM9Bot, DM13Bot = compute_dm_signals(df)
 
@@ -116,7 +108,7 @@ def main():
 
             print(f" - {signal['Ticker']}: {', '.join(flags)}")
     else:
-        print(f"🚫 No signals found for yesterday's trading session.")
+        print(f"🚫 No signals found today.")
 
 if __name__ == "__main__":
     main()
