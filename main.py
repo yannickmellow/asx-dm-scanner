@@ -57,7 +57,9 @@ def scan_timeframe(tickers, interval_label, interval):
     for ticker in tickers:
         try:
             tk = Ticker(ticker)
-            hist = tk.history(period='6mo', interval=interval)
+            # Fetch more data for weekly scans
+            period = '2y' if interval == '1wk' else '6mo'
+            hist = tk.history(period=period, interval=interval)
             if hist.empty:
                 continue
 
@@ -68,6 +70,13 @@ def scan_timeframe(tickers, interval_label, interval):
 
             df = df.reset_index()
             df.columns = [c.lower() for c in df.columns]
+
+            # Remove last candle if it's from the current (incomplete) week
+            if interval == '1wk':
+                last_date = df['date'].iloc[-1].date()
+                today = datetime.utcnow().date()
+                if last_date >= today - timedelta(days=today.weekday()):  # Monday of this week
+                    df = df.iloc[:-1]
 
             DM9Top, DM13Top, DM9Bot, DM13Bot = compute_dm_signals(df)
 
