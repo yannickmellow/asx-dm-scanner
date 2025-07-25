@@ -1,9 +1,9 @@
-import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
 import os
+from yahooquery import Ticker
 
-# ✅ Load ASX200 tickers from local cache file only
+# Load ASX200 tickers from local cache file only
 def fetch_asx200_tickers():
     cache_file = "asx200_cache.txt"
 
@@ -16,9 +16,9 @@ def fetch_asx200_tickers():
         print("❌ Ticker cache file not found!")
         return []
 
-# ✅ DM9/DM13 logic (replicated from Pine Script)
+# DM9/DM13 logic (replicated from Pine Script)
 def compute_dm_signals(df):
-    close = df["Close"].values
+    close = df["close"].values
     length = len(close)
     if length < 20:
         return False, False, False, False
@@ -48,15 +48,26 @@ def main():
 
     signals_found = []
 
-    # Use yesterday's date to get most recent close (handle weekends/holidays)
     end_date = datetime.utcnow().date() - timedelta(days=1)
     start_date = end_date - timedelta(days=30)
 
     for ticker in tickers:
         try:
-            df = yf.download(ticker, start=start_date.isoformat(), end=end_date.isoformat(), progress=False)
-            if df.empty:
+            tk = Ticker(ticker)
+            hist = tk.history(period='1mo', interval='1d')
+            if hist.empty:
                 continue
+
+            # yahooquery returns a DataFrame with multiindex if multiple tickers;
+            # filter for our ticker:
+            if isinstance(hist.index, pd.MultiIndex):
+                df = hist.xs(ticker, level=0)
+            else:
+                df = hist
+
+            df = df.reset_index()
+            # Normalize column names to lowercase
+            df.columns = [c.lower() for c in df.columns]
 
             DM9Top, DM13Top, DM9Bot, DM13Bot = compute_dm_signals(df)
 
@@ -70,7 +81,7 @@ def main():
                 })
 
         except Exception as e:
-            print(f"Failed to get ticker '{ticker}' reason: {e}")
+            print(f"⚠️ Skipping ticker '{ticker}' due to error: {e}")
 
     now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
     if signals_found:
