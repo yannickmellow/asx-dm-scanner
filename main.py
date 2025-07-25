@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 import os
 from yahooquery import Ticker
 
-# Load ASX200 tickers from local cache file only
 def fetch_asx200_tickers():
     cache_file = "asx200_cache.txt"
     if os.path.exists(cache_file):
@@ -15,8 +14,7 @@ def fetch_asx200_tickers():
         print("❌ Ticker cache file not found!")
         return []
 
-# DM9/DM13 logic — triggered on last bar only
-def compute_dm_signals(df, timeframe="daily"):
+def compute_dm_signals(df):
     close = df["close"].values
     length = len(close)
     if length < 20:
@@ -28,8 +26,8 @@ def compute_dm_signals(df, timeframe="daily"):
     TDDn = [0] * length
 
     for i in range(4, length):
-        TD[i] = TD[i-1] + 1 if close[i] > close[i-4] else 0
-        TS[i] = TS[i-1] + 1 if close[i] < close[i-4] else 0
+        TD[i] = TD[i - 1] + 1 if close[i] > close[i - 4] else 0
+        TS[i] = TS[i - 1] + 1 if close[i] < close[i - 4] else 0
 
     def valuewhen_reset(arr, idx):
         for j in range(idx - 1, 0, -1):
@@ -41,98 +39,70 @@ def compute_dm_signals(df, timeframe="daily"):
         TDUp[i] = TD[i] - valuewhen_reset(TD, i)
         TDDn[i] = TS[i] - valuewhen_reset(TS, i)
 
-    # Compare only the last bar to the previous full trading period
-    last_bar_date = df["date"].iloc[-1].date()
-    if timeframe == "daily":
-        expected_date = datetime.utcnow().date() - timedelta(days=1)
-    elif timeframe == "weekly":
-        expected_date = (datetime.utcnow() - timedelta(days=datetime.utcnow().weekday() + 2)).date()  # previous Friday
-    else:
-        return False, False, False, False
-
-    if last_bar_date != expected_date:
-        return False, False, False, False
-
-    i = length - 1
-    DM9Top = TDUp[i] == 9
-    DM13Top = TDUp[i] == 13
-    DM9Bot = TDDn[i] == 9
-    DM13Bot = TDDn[i] == 13
+    DM9Top = TDUp[-1] == 9
+    DM13Top = TDUp[-1] == 13
+    DM9Bot = TDDn[-1] == 9
+    DM13Bot = TDDn[-1] == 13
 
     return DM9Top, DM13Top, DM9Bot, DM13Bot
 
-def scan_signals(ticker, interval, timeframe_label):
-    try:
-        tk = Ticker(ticker)
-        hist = tk.history(period='6mo', interval=interval)
-        if hist.empty:
-            return None
+def scan_timeframe(tickers, interval_label, interval):
+    results = {
+        "Tops": [],
+        "Bottoms": []
+    }
 
-        if isinstance(hist.index, pd.MultiIndex):
-            df = hist.xs(ticker, level=0)
-        else:
-            df = hist
+    print(f"\n🔍 Scanning {len(tickers)} tickers on {interval_label} timeframe...")
 
-        df = df.reset_index()
-        df.columns = [c.lower() for c in df.columns]
+    for ticker in tickers:
+        try:
+            tk = Ticker(ticker)
+            hist = tk.history(period='6mo', interval=interval)
+            if hist.empty:
+                continue
 
-        # Remove today's partial bar
-        df = df[df["date"] < datetime.utcnow().date()]
-        if df.empty:
-            return None
+            if isinstance(hist.index, pd.MultiIndex):
+                df = hist.xs(ticker, level=0)
+            else:
+                df = hist
 
-        return compute_dm_signals(df, timeframe_label)
-    except Exception as e:
-        print(f"⚠️ Skipping {ticker} [{interval}] due to error: {e}")
-        return None
+            df = df.reset_index()
+            df.columns = [c.lower() for c in df.columns]
+
+            DM9Top, DM13Top, DM9Bot, DM13Bot = compute_dm_signals(df)
+
+            if DM9Top or DM13Top:
+                results["Tops"].append((ticker, "DM13Top" if DM13Top else "DM9Top"))
+            if DM9Bot or DM13Bot:
+                results["Bottoms"].append((ticker, "DM13Bot" if DM13Bot else "DM9Bot"))
+
+        except Exception as e:
+            print(f"⚠️ Skipping {ticker} [{interval_label}] due to error: {e}")
+
+    return results
 
 def main():
     tickers = fetch_asx200_tickers()
-    print(f"📊 Scanning {len(tickers)} tickers for daily and weekly DM9/DM13 signals...\n")
-
-    signals_found = []
-
-    for ticker in tickers:
-        daily = scan_signals(ticker, interval="1d", timeframe_label="daily")
-        weekly = scan_signals(ticker, interval="1wk", timeframe_label="weekly")
-
-        if daily is None and weekly is None:
-            continue
-
-        daily_flags = []
-        weekly_flags = []
-
-        if daily:
-            d9t, d13t, d9b, d13b = daily
-            if d9t: daily_flags.append("DM9Top")
-            if d13t: daily_flags.append("DM13Top")
-            if d9b: daily_flags.append("DM9Bot")
-            if d13b: daily_flags.append("DM13Bot")
-
-        if weekly:
-            w9t, w13t, w9b, w13b = weekly
-            if w9t: weekly_flags.append("DM9Top (W)")
-            if w13t: weekly_flags.append("DM13Top (W)")
-            if w9b: weekly_flags.append("DM9Bot (W)")
-            if w13b: weekly_flags.append("DM13Bot (W)")
-
-        if daily_flags or weekly_flags:
-            signals_found.append({
-                "Ticker": ticker,
-                "Daily": daily_flags,
-                "Weekly": weekly_flags,
-            })
-
     now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-    if signals_found:
-        print(f"✅ Signals found as of {now_str}:\n")
-        for sig in signals_found:
-            if sig["Daily"]:
-                print(f"📅 {sig['Ticker']} -- {', '.join(sig['Daily'])}")
-            if sig["Weekly"]:
-                print(f"🗓️ {sig['Ticker']} -- {', '.join(sig['Weekly'])}")
-    else:
-        print("🚫 No signals found for daily or weekly bars.")
+
+    # Scan Daily and Weekly
+    daily_signals = scan_timeframe(tickers, "1D", "1d")
+    weekly_signals = scan_timeframe(tickers, "1W", "1wk")
+
+    print(f"\n📋 DeMark Signals as of {now_str}\n" + "=" * 40)
+
+    def print_section(title, signals):
+        print(f"\n🔸 {title}\n" + "-" * 40)
+        if signals:
+            df = pd.DataFrame(signals, columns=["Ticker", "Signal"])
+            print(df.to_string(index=False))
+        else:
+            print("None")
+
+    print_section("Daily Bottoms", daily_signals["Bottoms"])
+    print_section("Weekly Bottoms", weekly_signals["Bottoms"])
+    print_section("Daily Tops", daily_signals["Tops"])
+    print_section("Weekly Tops", weekly_signals["Tops"])
 
 if __name__ == "__main__":
     main()
