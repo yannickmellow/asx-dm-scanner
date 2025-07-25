@@ -23,7 +23,7 @@ jobs:
 
       - name: ⚙️ Run DeMark Scanner
         run: |
-          python asx_dm_scanner.py
+          python main.py
 
       - name: 🚀 Commit and push output.html
         run: |
