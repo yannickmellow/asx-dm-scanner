@@ -114,7 +114,6 @@ def main():
     print_section("Weekly Tops", weekly_signals["Tops"])
 
 # ✅ Save HTML dashboard to root directory
-generate_html_dashboard(daily_signals, weekly_signals)
 def generate_html_dashboard(daily, weekly, output_file="output.html"):
     def section_html(title, data):
         if not data:
