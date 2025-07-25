@@ -1,0 +1,39 @@
+name: Update ASX DeMark Dashboard
+
+on:
+  schedule:
+    - cron: '0 22 * * 1-5'  # Runs at 22:00 UTC Monday to Friday
+  workflow_dispatch:        # Allow manual trigger
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install yahooquery pandas
+
+    - name: Run ASX DeMark scanner script
+      run: |
+        python your_script.py
+
+    - name: Commit and push updated dashboard
+      env:
+        GH_PAT: ${{ secrets.GH_PAT }}
+      run: |
+        git config user.name "github-actions"
+        git config user.email "github-actions@github.com"
+        git add output.html
+        git commit -m "📈 Update dashboard [auto]" || echo "No changes to commit"
+        git remote set-url origin "https://x-access-token:${GH_PAT}@github.com/${{ github.repository }}.git"
+        git push origin HEAD:main
