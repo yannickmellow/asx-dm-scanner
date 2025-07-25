@@ -1,33 +1,44 @@
-name: Update DeMark Dashboard
+name: 📈 Build & Deploy Dashboard
 
 on:
-  schedule:
-    - cron: "30 7 * * 1-5"  # Runs at 7:30 UTC every weekday
-  workflow_dispatch:        # Allow manual run from GitHub UI
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
-  update-dashboard:
+  build-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 📥 Checkout repo
+      - name: 📥 Checkout repository
         uses: actions/checkout@v3
 
       - name: 🐍 Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: 📦 Install dependencies
-        run: pip install yahooquery pandas
+        run: pip install pandas yahooquery
 
-      - name: 📈 Run signal scanner
+      - name: ⚙️ Run scanner
         run: python main.py
+
+      - name: 🔐 Debug token auth
+        run: |
+          echo "🔍 Remote Info:"
+          git remote -v
+          echo "🔍 Git Status:"
+          git status
+          echo "🔍 Current Branch:"
+          git branch
+          echo "🔍 Git Config:"
+          git config --list
 
       - name: 📤 Push updated dashboard
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add output.html
+          git add docs/output.html
           git commit -m "📈 Update dashboard [auto]" || echo "No changes to commit"
           git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git HEAD:main
