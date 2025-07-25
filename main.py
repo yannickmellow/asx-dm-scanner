@@ -1,4 +1,3 @@
-
 import pandas as pd
 from datetime import datetime, timedelta
 import os
@@ -17,7 +16,7 @@ def fetch_asx200_tickers():
         print("❌ Ticker cache file not found!")
         return []
 
-# DM9/DM13 logic (replicated from Pine Script)
+# DM9/DM13 logic (check only final bar for signals)
 def compute_dm_signals(df):
     close = df["close"].values
     length = len(close)
@@ -30,12 +29,10 @@ def compute_dm_signals(df):
     TDDn = [0] * length
 
     for i in range(4, length):
-        TD[i] = TD[i-1] + 1 if close[i] > close[i-4] else 0
-        TS[i] = TS[i-1] + 1 if close[i] < close[i-4] else 0
+        TD[i] = TD[i - 1] + 1 if close[i] > close[i - 4] else 0
+        TS[i] = TS[i - 1] + 1 if close[i] < close[i - 4] else 0
 
-    # For TDUp and TDDn, we find the last reset index before i
     def valuewhen_reset(arr, idx):
-        # Find last index < idx where arr[j] < arr[j-1]
         for j in range(idx - 1, 0, -1):
             if arr[j] < arr[j - 1]:
                 return arr[j]
@@ -45,10 +42,12 @@ def compute_dm_signals(df):
         TDUp[i] = TD[i] - valuewhen_reset(TD, i)
         TDDn[i] = TS[i] - valuewhen_reset(TS, i)
 
-    DM9Top = any(t == 9 for t in TDUp)
-    DM13Top = any(t == 13 for t in TDUp)
-    DM9Bot = any(t == 9 for t in TDDn)
-    DM13Bot = any(t == 13 for t in TDDn)
+    # ✅ Only check signals on the final (most recent) candle
+    i = length - 1
+    DM9Top = TDUp[i] == 9
+    DM13Top = TDUp[i] == 13
+    DM9Bot = TDDn[i] == 9
+    DM13Bot = TDDn[i] == 13
 
     return DM9Top, DM13Top, DM9Bot, DM13Bot
 
@@ -68,16 +67,17 @@ def main():
             if hist.empty:
                 continue
 
-            # yahooquery returns a DataFrame with multiindex if multiple tickers;
-            # filter for our ticker:
             if isinstance(hist.index, pd.MultiIndex):
                 df = hist.xs(ticker, level=0)
             else:
                 df = hist
 
             df = df.reset_index()
-            # Normalize column names to lowercase
             df.columns = [c.lower() for c in df.columns]
+
+            # Ensure we have a datetime column and only use rows before today
+            if 'date' in df.columns:
+                df = df[df['date'] < pd.to_datetime(datetime.utcnow().date())]
 
             DM9Top, DM13Top, DM9Bot, DM13Bot = compute_dm_signals(df)
 
