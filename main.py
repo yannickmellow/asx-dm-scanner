@@ -1,3 +1,4 @@
+
 import pandas as pd
 from datetime import datetime, timedelta
 import os
@@ -30,17 +31,24 @@ def compute_dm_signals(df):
 
     for i in range(4, length):
         TD[i] = TD[i-1] + 1 if close[i] > close[i-4] else 0
-        TDUp[i] = TD[i] - (TD[i-1] if TD[i-1] < TD[i] else 0)
-
         TS[i] = TS[i-1] + 1 if close[i] < close[i-4] else 0
-        TDDn[i] = TS[i] - (TS[i-1] if TS[i-1] < TS[i] else 0)
 
-    # We want to detect if the **last bar** has a TD9 or TD13 signal
-    last = length - 1
-    DM9Top = (TDUp[last] == 9)
-    DM13Top = (TDUp[last] == 13)
-    DM9Bot = (TDDn[last] == 9)
-    DM13Bot = (TDDn[last] == 13)
+    # For TDUp and TDDn, we find the last reset index before i
+    def valuewhen_reset(arr, idx):
+        # Find last index < idx where arr[j] < arr[j-1]
+        for j in range(idx - 1, 0, -1):
+            if arr[j] < arr[j - 1]:
+                return arr[j]
+        return 0
+
+    for i in range(4, length):
+        TDUp[i] = TD[i] - valuewhen_reset(TD, i)
+        TDDn[i] = TS[i] - valuewhen_reset(TS, i)
+
+    DM9Top = any(t == 9 for t in TDUp)
+    DM13Top = any(t == 13 for t in TDUp)
+    DM9Bot = any(t == 9 for t in TDDn)
+    DM13Bot = any(t == 13 for t in TDDn)
 
     return DM9Top, DM13Top, DM9Bot, DM13Bot
 
@@ -50,7 +58,6 @@ def main():
 
     signals_found = []
 
-    # Define the target date: yesterday (assuming script runs after market close)
     end_date = datetime.utcnow().date() - timedelta(days=1)
     start_date = end_date - timedelta(days=30)
 
@@ -71,16 +78,6 @@ def main():
             df = df.reset_index()
             # Normalize column names to lowercase
             df.columns = [c.lower() for c in df.columns]
-
-            # Ensure date column is datetime without tz info (avoid tz-aware/naive conflict)
-            df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None)
-
-            # Confirm last date in data matches expected end_date
-            last_date = df["date"].iloc[-1].date()
-
-            if last_date != end_date:
-                print(f"⚠️ Skipping {ticker} because last data date {last_date} != target date {end_date}")
-                continue
 
             DM9Top, DM13Top, DM9Bot, DM13Bot = compute_dm_signals(df)
 
@@ -112,7 +109,7 @@ def main():
 
             print(f" - {signal['Ticker']}: {', '.join(flags)}")
     else:
-        print(f"🚫 No signals found for {end_date}.")
+        print(f"🚫 No signals found today.")
 
 if __name__ == "__main__":
     main()
