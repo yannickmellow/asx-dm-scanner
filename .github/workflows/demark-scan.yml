@@ -2,7 +2,7 @@ name: ASX DeMark Scan and Publish
 
 on:
   schedule:
-    - cron: '3 9 * * 1-5'  # 6:30pm ACST = 9:00 UTC
+    - cron: '0 9 * * 1-5'  # 6:30pm ACST = 9:00 UTC
   workflow_dispatch:
 
 jobs:
